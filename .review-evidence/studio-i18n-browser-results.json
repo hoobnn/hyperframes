@@ -1,0 +1,28 @@
+{
+  "live": {
+    "tabs": [
+      "合成",
+      "素材",
+      "代码",
+      "组件库",
+      "预览",
+      "设计",
+      "图层",
+      "渲染",
+      "变量",
+      "时间线"
+    ],
+    "persisted": "zh-CN",
+    "sameIframe": true,
+    "sameDock": true,
+    "sameWindow": true,
+    "capture": "A"
+  },
+  "windowMenu": "✓预览✓时间线✓合成✓素材✓代码✓组件库✓设计✓图层✓渲染✓变量幻灯片重置布局",
+  "reload": true,
+  "switchBack": true,
+  "keyboard": true,
+  "compact": true,
+  "projectUnchanged": true,
+  "pageErrors": []
+}
