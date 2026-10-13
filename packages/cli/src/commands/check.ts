@@ -1,4 +1,7 @@
+import { resolve } from "node:path";
 import { formatFindingTimes } from "../utils/checkFindings.js";
+import { withProjectLock } from "../utils/projectLock.js";
+import { reportArtifacts } from "../utils/toolContext.js";
 import { defineCommand, parseArgs } from "citty";
 import type { ArgsDef } from "citty";
 import type { Example } from "./_examples.js";
@@ -37,7 +40,13 @@ export interface CheckCommandDependencies {
 
 const DEFAULT_COMMAND_DEPENDENCIES: CheckCommandDependencies = {
   resolveProject,
-  runPipeline: runCheckPipeline,
+  async runPipeline(project, options) {
+    const report = await runCheckPipeline(project, options);
+    const images = (files: readonly string[]) => files.map((file) => resolve(project.dir, file));
+    reportArtifacts("check", "frame", images(report.snapshots.files));
+    reportArtifacts("check", "finding", images(report.snapshots.findingFiles));
+    return report;
+  },
   withMeta,
 };
 
@@ -148,7 +157,9 @@ export function createCheckCommand(
         if (!asJson) {
           console.log(`${c.accent("◆")}  Checking ${c.accent(project.name)}`);
         }
-        const report = await dependencies.runPipeline(project, options);
+        const report = await withProjectLock(project.dir, "check", () =>
+          dependencies.runPipeline(project, options),
+        );
         if (asJson) {
           console.log(JSON.stringify(dependencies.withMeta(report), null, 2));
         } else {

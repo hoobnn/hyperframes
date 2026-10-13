@@ -1,3 +1,5 @@
+import { reportArtifacts } from "../utils/toolContext.js";
+import { withProjectLock } from "../utils/projectLock.js";
 import {
   parseSnapshotRange,
   sampleSnapshotRange,
@@ -1010,21 +1012,28 @@ export default defineCommand({
       const snapshotDir = args.output
         ? resolve(String(args.output))
         : join(project.dir, "snapshots");
-      const paths = await captureSnapshots(project.dir, {
-        frames,
-        range,
-        composition,
-        timeout,
-        at: atTimestamps,
-        outputDir: snapshotDir,
-        angle: camera,
-        includeEnd: args.end !== false,
-        zoom: zoomTarget,
-        zoomScale,
-        autoProxy: args.proxy as boolean | undefined,
-        browserGpuMode: resolveLocalBrowserGpuMode(args["browser-gpu"] as boolean | undefined),
-        against,
-      });
+      const paths = await withProjectLock(project.dir, "snapshot", () =>
+        captureSnapshots(project.dir, {
+          frames,
+          range,
+          composition,
+          timeout,
+          at: atTimestamps,
+          outputDir: snapshotDir,
+          angle: camera,
+          includeEnd: args.end !== false,
+          zoom: zoomTarget,
+          zoomScale,
+          autoProxy: args.proxy as boolean | undefined,
+          browserGpuMode: resolveLocalBrowserGpuMode(args["browser-gpu"] as boolean | undefined),
+          against,
+        }),
+      );
+      reportArtifacts(
+        "snapshot",
+        "frame",
+        paths.map((path) => resolve(project.dir, path)),
+      );
 
       if (paths.length === 0) {
         console.log(
@@ -1052,6 +1061,7 @@ export default defineCommand({
           snapshotDir,
           join(snapshotDir, "contact-sheet.jpg"),
         );
+        reportArtifacts("snapshot", "contact-sheet", sheets);
         for (const sheet of sheets) {
           console.log(`   ${resolve(sheet)} (grid view for AI review)`);
         }

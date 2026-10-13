@@ -1,5 +1,7 @@
 import { runCommand } from "citty";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const trackCheckReport = vi.fn();
@@ -528,6 +530,34 @@ it("threads --no-proxy into the browser check options", async () => {
   await runCommand(command, { rawArgs: ["--json", "--no-proxy"] });
 
   expect(runPipeline).toHaveBeenCalledWith(PROJECT, expect.objectContaining({ autoProxy: false }));
+});
+
+it("waits for the project lock declared in HF_TOOL_CONTEXT before running the pipeline", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hf-check-lock-"));
+  const lock = join(dir, ".hyperframes", "project.lock");
+  mkdirSync(join(dir, ".hyperframes"));
+  writeFileSync(lock, JSON.stringify({ pid: process.pid, command: "snapshot", startedAt: 1 }));
+  vi.stubEnv(
+    "HF_TOOL_CONTEXT",
+    JSON.stringify({ version: 1, capabilities: { "project-lock": { waitMs: 0 } } }),
+  );
+  const { report } = await runScenario(fakeDriver());
+  const runPipeline = vi.fn(async () => report);
+  const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  const command = createCheckCommand({
+    resolveProject: () => ({ ...PROJECT, dir }),
+    runPipeline,
+    withMeta: (value) => value,
+  });
+  try {
+    await runCommand(command, { rawArgs: ["--json"] });
+    expect(runPipeline).not.toHaveBeenCalled();
+    expect(consumeCommandResult().exitCode).toBe(1);
+    expect(String(log.mock.calls[0]?.[0])).toContain("hyperframes snapshot");
+  } finally {
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 it("rejects malformed caption-zone specs instead of silently disabling the gate", async () => {
