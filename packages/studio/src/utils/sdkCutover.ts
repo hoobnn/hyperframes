@@ -105,7 +105,18 @@ export async function sdkCutoverPersist(
     (session) => {
       for (const editOp of patchOpsToSdkEditOps(hfId, ops)) session.dispatch(editOp);
     },
-    options,
+    {
+      ...options,
+      targets: [
+        {
+          file: targetPath,
+          hfId,
+          ...(selection.id && { id: selection.id }),
+          ...(selection.selector && { selector: selection.selector }),
+          ...(selection.selectorIndex !== undefined && { selectorIndex: selection.selectorIndex }),
+        },
+      ],
+    },
   );
   trackCutoverResult(result, "dom", { hfId, opCount: ops.length });
   return result;

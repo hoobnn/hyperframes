@@ -41,6 +41,7 @@ import {
   type FolderIdentity,
 } from "./historyId.js";
 import { takeHistoryOwnership } from "./ownerLock.js";
+import { writeHistoryState } from "./videoState.js";
 import {
   START,
   baselineRecord,
@@ -54,6 +55,7 @@ import {
   undoneIds,
   writeLog,
   type HistoryEntry,
+  type HistoryTarget,
   type HistoryEntrySide,
   type HistoryFileChange,
   type HistoryLog,
@@ -87,6 +89,7 @@ export interface ProjectHistoryOptions {
 }
 
 interface ClaimOptions {
+  targets?: readonly HistoryTarget[];
   coalesceKey?: string;
   idleMs?: number;
   /** Per path, the version (fileContentVersion) the claimer overwrote: earlier changes stay their writer's. */
@@ -166,6 +169,7 @@ export interface ProjectHistory {
   pin(id: string, pinned: boolean): void;
   onEntry(listener: (entry: HistoryEntry) => void): () => void;
   /** Takes in every pending write and commits every open window and the outside group. */
+  checkpoint(): Promise<void>;
   flush(): Promise<void>;
   /** True once another project stands at the folder's path: open that one's history instead. */
   replacedAtPath(): boolean;
@@ -181,6 +185,7 @@ interface Tracked {
 }
 
 interface Group {
+  targets?: HistoryTarget[];
   id: string;
   who: HistoryWho;
   label: string;
@@ -327,6 +332,18 @@ function addChange(group: Group, path: string, before: string | null, after: str
   else group.changes.set(path, { path, before: from, after });
 }
 
+const targetKey = (target: HistoryTarget) =>
+  JSON.stringify([target.file, target.id, target.hfId, target.selector, target.selectorIndex]);
+
+function keepTargetsOfItsFiles(entry: HistoryEntry): HistoryEntry {
+  const targets = entry.targets?.filter((target) =>
+    entry.files.some((file) => file.path === target.file),
+  );
+  if (targets?.length) entry.targets = targets;
+  else delete entry.targets;
+  return entry;
+}
+
 class Engine {
   readonly dir: string;
   readonly foldsCase: boolean;
@@ -383,7 +400,22 @@ class Engine {
   queue<T>(task: () => Promise<T>): Promise<T> {
     if (this.closed)
       return Promise.reject(new HistoryClosedError("This project's history is closed."));
-    const run = this.tail.then(task);
+    const run = this.tail.then(async () => {
+      try {
+        return await task();
+      } finally {
+        if (this.whereFolder() === "here") {
+          await writeHistoryState(
+            this.dir,
+            this.projectId,
+            this.home,
+            this.log.entries,
+            this.manifest(),
+            manifestAt(this.log, this.log.entries.at(-1)?.id ?? START) ?? new Map(),
+          ).catch((error) => this.options.onError?.(error));
+        }
+      }
+    });
     this.tail = run.catch(() => undefined);
     return run;
   }
@@ -683,7 +715,7 @@ class Engine {
     who: HistoryWho,
     label: string,
     paths: readonly string[],
-    { coalesceKey, idleMs, overwrote = {} }: ClaimOptions,
+    { coalesceKey, idleMs, overwrote = {}, targets = [] }: ClaimOptions,
   ): Promise<{ id: string } | null> {
     await this.sweep();
     const taken = await this.takeClaimed(who, paths, overwrote);
@@ -693,9 +725,19 @@ class Engine {
     await this.commitPending();
     const group = held ?? this.newGroup(who, label);
     for (const change of taken) addChange(group, change.path, change.before, change.after);
+    this.addTargets(group, targets);
     if (coalesceKey) return this.holdClaim(group, coalesceKey, idleMs);
     const entry = await this.commit(group);
     return entry && { id: entry.id };
+  }
+
+  addTargets(group: Group, targets: readonly HistoryTarget[]): void {
+    const unique = new Map((group.targets ?? []).map((target) => [targetKey(target), target]));
+    for (const target of targets) {
+      const normalized = { ...target, file: this.logPath(target.file) };
+      if (group.changes.has(normalized.file)) unique.set(targetKey(normalized), normalized);
+    }
+    group.targets = [...unique.values()];
   }
 
   /** A claim that took nothing still ends a held claim under another key. */
@@ -867,7 +909,7 @@ class Engine {
     if (!group.changes.size && !undoesEmptied) return null;
     const pending = this.pendingEntry(group);
     const endedAt = Math.max(pending.endedAt, this.log.entries.at(-1)?.endedAt ?? 0);
-    const entry: HistoryEntry = { ...pending, endedAt, ...extra };
+    const entry = keepTargetsOfItsFiles({ ...pending, endedAt, ...extra });
     this.log.entries.push(entry);
     try {
       this.persistLog({ type: "entry", entry });
@@ -1103,7 +1145,10 @@ class Engine {
     );
     return {
       ok: true,
-      entry: await this.writeAs(who, this.undoLabel(entry), target, { undoes: id }),
+      entry: await this.writeAs(who, this.undoLabel(entry), target, {
+        undoes: id,
+        ...(entry.targets && { targets: entry.targets }),
+      }),
     };
   }
 
@@ -1132,7 +1177,15 @@ class Engine {
   pendingEntry(group: Group): HistoryEntry {
     const files = [...group.changes.values()].sort((a, b) => a.path.localeCompare(b.path));
     const { id, who, label, startedAt, lastWriteAt } = group;
-    return { id, who, label, startedAt, endedAt: lastWriteAt ?? this.now(), files };
+    return {
+      id,
+      who,
+      label,
+      startedAt,
+      endedAt: lastWriteAt ?? this.now(),
+      files,
+      ...(group.targets?.length && { targets: group.targets }),
+    };
   }
 
   conflict(
@@ -1240,6 +1293,7 @@ class Engine {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
       },
+      checkpoint: () => this.queue(() => this.settle()),
       flush: () => this.queue(() => this.settleAll()),
       replacedAtPath: () => this.whereFolder() === "replaced",
       close: () =>
