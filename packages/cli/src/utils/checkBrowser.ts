@@ -1,3 +1,4 @@
+import { checkSnapshotDirectory } from "./checkSnapshotDirectory.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Page } from "puppeteer-core";
@@ -284,7 +285,7 @@ export async function captureFindingCrops(
     const page = session.page;
     await waitForPreferredSeekTarget(page);
 
-    const snapshotDir = join(project.dir, "snapshots");
+    const snapshotDir = checkSnapshotDirectory(project.dir);
     mkdirSync(snapshotDir, { recursive: true });
     for (const request of requests) {
       await seekCompositionTimeline(page, request.time, AUDIT_SEEK_OPTIONS);
@@ -295,7 +296,7 @@ export async function captureFindingCrops(
       const region = padCropRegion(request.bbox, canvas, DEFAULT_ZOOM_PADDING_PX);
       const buffer = await captureRegionCrop(page, region, DEFAULT_ZOOM_SCALE);
       writeFileSync(join(snapshotDir, request.filename), buffer);
-      written.push(join("snapshots", request.filename));
+      written.push(join(snapshotDir, request.filename));
     }
     return written;
   } finally {

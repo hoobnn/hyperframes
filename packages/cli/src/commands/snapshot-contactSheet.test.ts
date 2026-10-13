@@ -95,7 +95,11 @@ describe("snapshot contact sheet failures", () => {
 
       await expect(
         runCommand(snapshotCommand, {
-          rawArgs: [project, "--at", "0.5,1", "--no-end", "--describe", "false"],
+          rawArgs: [
+            project,
+            ...["--at", "0.5,1", "--no-end", "--describe", "false"],
+            ...["--output", join(project, "snapshots")],
+          ],
         }),
       ).resolves.toBeDefined();
 
@@ -122,7 +126,11 @@ describe("snapshot contact sheet failures", () => {
     vi.doMock("../capture/contactSheet.js", () => ({ createSnapshotContactSheet: generate }));
 
     await runCommand(snapshotCommand, {
-      rawArgs: [project, "--at", "0.5,1", "--no-end", "--describe", "false"],
+      rawArgs: [
+        project,
+        ...["--at", "0.5,1", "--no-end", "--describe", "false"],
+        ...["--output", join(project, "snapshots")],
+      ],
     });
 
     expect(generate).toHaveBeenCalledWith(join(project, "snapshots"), sheet);

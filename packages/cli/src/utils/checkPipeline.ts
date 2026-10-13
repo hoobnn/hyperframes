@@ -1,3 +1,4 @@
+import { checkSnapshotDirectory } from "./checkSnapshotDirectory.js";
 import { findingElementKey, groupSampledFindings } from "./checkFindings.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -1644,12 +1645,12 @@ async function writeSnapshot(
   time: number,
   pngBase64: string,
 ): Promise<string> {
-  const snapshotDir = join(projectDir, "snapshots");
+  const snapshotDir = checkSnapshotDirectory(projectDir);
   mkdirSync(snapshotDir, { recursive: true });
   const filename = `frame-${String(index).padStart(2, "0")}-at-${time.toFixed(1)}s.png`;
   const path = join(snapshotDir, filename);
   writeFileSync(path, Buffer.from(pngBase64, "base64"));
-  return join("snapshots", filename);
+  return relative(projectDir, path);
 }
 
 async function captureFindingCrops(

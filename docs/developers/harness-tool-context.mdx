@@ -46,7 +46,7 @@ Each line is an event:
   "version": 1,
   "type": "artifact.created",
   "command": "snapshot",
-  "artifact": { "role": "contact-sheet", "path": "/project/snapshots/contact-sheet.jpg", "mediaType": "image/jpeg" }
+  "artifact": { "role": "contact-sheet", "path": "/project/.hyperframes/artifacts/snapshots/…/contact-sheet.jpg", "mediaType": "image/jpeg" }
 }
 ```
 
@@ -54,11 +54,12 @@ Each line is an event:
 | --- | --- | --- |
 | `snapshot` | `frame` | Each captured frame (PNG) |
 | `snapshot` | `contact-sheet` | Each page of the grid of frames made for review (JPEG) |
+| `check` | `check-report` | The saved JSON report |
 | `check` | `frame` | Each frame the browser check captured |
 | `check` | `finding` | Each crop around a finding |
 
 Paths are absolute and stay where the command saved them. What to do with an artifact is the
-harness's decision: attach the contact sheet to the tool result, or ignore it.
+harness's decision: attach the contact sheet to the tool result, link the report, or ignore it.
 Ignore event types and roles you do not know; new ones are added without a version change.
 
 ## `project-lock`: one browser command at a time

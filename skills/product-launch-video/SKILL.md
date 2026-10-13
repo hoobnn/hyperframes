@@ -222,7 +222,7 @@ Inject transitions, run checks, pause for review, then render.
 
 `npx hyperframes snapshot --at <frame-midpoints-and-each-cut-minus-0.1s-and-plus-0.2s>`
 
-`snapshot` stitches the captured frames into one contact sheet (`snapshots/contact-sheet.jpg`). Inspect the midpoint frames for layout failures, then compare the two images around every cut. A continuing element must keep the promised position, scale, opacity, and direction; fix any visible pop before rendering.
+`snapshot` stitches the captured frames into one contact sheet (`.hyperframes/artifacts/snapshots/<id>/contact-sheet.jpg`; the command prints the path). Inspect the midpoint frames for layout failures, then compare the two images around every cut. A continuing element must keep the promised position, scale, opacity, and direction; fix any visible pop before rendering.
 
 If a command fails, surface stderr and stop — don't pile on recovery commands. Fix it yourself: the cheapest safe edit to `compositions/frames/NN-*.html`, then rerun the failed check.
 

@@ -203,4 +203,23 @@ describe("cleanLeftovers", () => {
     await run({ snapshots: true });
     expect(existsSync(snapshots)).toBe(false);
   });
+
+  it("treats saved snapshot and check artifacts like snapshots/", async () => {
+    const artifacts = join(project, ".hyperframes", "artifacts");
+    const snapshots = plant(artifacts, "snapshots");
+    const checks = plant(artifacts, "checks");
+    const state = join(project, ".hyperframes", "video-state.json");
+    writeFileSync(state, "{}");
+
+    const plain = await run();
+    expect(plain.alsoReclaimable).toEqual([
+      { what: "Snapshots", path: snapshots, bytes: 1000 },
+      { what: "Check reports", path: checks, bytes: 1000 },
+    ]);
+    expect(existsSync(snapshots) && existsSync(checks)).toBe(true);
+
+    await run({ snapshots: true });
+    expect(existsSync(snapshots) || existsSync(checks)).toBe(false);
+    expect(existsSync(state)).toBe(true);
+  });
 });

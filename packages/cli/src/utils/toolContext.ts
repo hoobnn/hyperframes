@@ -8,7 +8,7 @@ export interface ToolContext {
   projectLock?: { waitMs: number };
 }
 
-export type ArtifactRole = "contact-sheet" | "frame" | "finding";
+export type ArtifactRole = "contact-sheet" | "frame" | "finding" | "check-report";
 
 interface ArtifactCreatedEvent {
   version: typeof TOOL_CONTEXT_VERSION;
@@ -53,6 +53,7 @@ const MEDIA_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".json": "application/json",
 };
 
 export function reportArtifacts(
